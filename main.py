@@ -22,7 +22,7 @@ def SurroundingCells(board, x, y):
 def CellID(board, cell):
     return cell[0] * len(board[0]) + cell[1] + 1
 
-def GenerateCNFs(board):
+def GenerateDNFs(board):
     clauses = []
     for i in range(len(board)):
         for j in range(len(board[0])):
@@ -42,11 +42,34 @@ def GenerateCNFs(board):
                
     return clauses
 
+def distribute_and_over_or(terms):
+    result = [[]]
+    for term in terms:
+        new_result = []
+        for clause in result:
+            for literal in term:
+                new_clause = clause.copy()
+                new_clause.append(literal)
+                new_result.append(new_clause)
+        result = new_result
+    return result
+
+def dnf_to_cnf(dnf):
+    cnf = []
+    for clause in distribute_and_over_or(dnf):
+        cnf.append(clause)
+    return cnf
+
 if __name__ == '__main__':
     board = InputBoard()
-    clauses = GenerateCNFs(board)
-    solver = Solver(name='g4')
-    for clause in clauses:
-        solver.add_clause(clause)
-    solver.solve()
-    print(solver.get_model())
+    dnfs = GenerateDNFs(board)
+    cnfs = []
+    #print dnf clauses to output.txt
+    with open('output.txt', 'w') as f:
+        for clause in dnfs:
+            f.write(str(clause) + '\n')
+    # Convert DNF to CNF
+    cnfs = dnf_to_cnf(dnfs)
+    #print cnf expression to output.txt
+    with open('output.txt', 'a') as f:
+        f.write(cnfs)
