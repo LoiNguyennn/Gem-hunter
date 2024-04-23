@@ -42,34 +42,35 @@ def GenerateDNFs(board):
                
     return clauses
 
-def distribute_and_over_or(terms):
-    result = [[]]
-    for term in terms:
-        new_result = []
-        for clause in result:
-            for literal in term:
-                new_clause = clause.copy()
-                new_clause.append(literal)
-                new_result.append(new_clause)
-        result = new_result
-    return result
+def GenerateTruthTable(dnf_clauses):
+    num_variables = len(set([abs(literal) for clause in dnf_clauses for literal in clause]))
+    truth_table = []
+    for i in range(2 ** num_variables):
+        truth_table.append([])
+        for j in range(num_variables):
+            truth_table[-1].append((i >> j) & 1)
+    
+    return truth_table
 
-def dnf_to_cnf(dnf):
+def CheckingTruthTable(truth_table, dnf_clauses):
+    #return an array of True/False values
+    return [all([any([truth_table[i][abs(literal) - 1] if literal > 0 else not truth_table[i][abs(literal) - 1] for literal in clause]) for clause in dnf_clauses]) for i in range(len(truth_table))]
+
+def de_morgan(clause):
+    return [-literal for literal in clause]
+
+def cnf_generator(truth_table, result):
     cnf = []
-    for clause in distribute_and_over_or(dnf):
-        cnf.append(clause)
+    for i in range(len(truth_table)):
+        if result[i] == False:
+            cnf.append(de_morgan([literal + 1 if truth_table[i][literal] == 1 else -(literal + 1) for literal in range(len(truth_table[i]))]))
     return cnf
 
 if __name__ == '__main__':
     board = InputBoard()
     dnfs = GenerateDNFs(board)
     cnfs = []
-    #print dnf clauses to output.txt
-    with open('output.txt', 'w') as f:
-        for clause in dnfs:
-            f.write(str(clause) + '\n')
-    # Convert DNF to CNF
-    cnfs = dnf_to_cnf(dnfs)
-    #print cnf expression to output.txt
-    with open('output.txt', 'a') as f:
-        f.write(cnfs)
+    truth_table = GenerateTruthTable(dnfs)
+    result = CheckingTruthTable(truth_table, dnfs)
+    cnfs = cnf_generator(truth_table, result)
+    print(cnfs)
