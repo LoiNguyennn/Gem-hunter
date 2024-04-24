@@ -1,6 +1,13 @@
 import fileinput
 from itertools import combinations
 from pysat.solvers import Glucose3
+import pygame
+import sys
+
+TILE_SIZE = 70
+GOLD_COLOR = (255, 255, 204)
+TRAP_COLOR = (153, 255, 204)
+BLANK_COLOR = (179, 175, 249)
 
 DIRECTION = [(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1)]
 
@@ -109,7 +116,39 @@ def GetAnswer(board):
         return convertResult(solver.get_model(), board)
     return None
 
+def display(_map):
+    pygame.init()
+    pygame.font.init()
+    font = pygame.font.SysFont('Arial', 22)
+    col = len(_map[0])
+    row = len(_map)
+    win = pygame.display.set_mode((row * TILE_SIZE, col * TILE_SIZE))
+    pygame.display.set_caption('Gem Hunter')
+    clock = pygame.time.Clock()
+    def draw_map():
+        for i in range(row):
+            for j in range(col):
+                if _map[i][j] == 'T':
+                   color = TRAP_COLOR
+                elif _map[i][j] == 'G':
+                    color = GOLD_COLOR
+                else:
+                    color = BLANK_COLOR
+                pygame.draw.rect(win, color, (j * TILE_SIZE, i * TILE_SIZE, TILE_SIZE - 2, TILE_SIZE - 2))
+                letter = str(_map[i][j])
+                text_surface = font.render(letter, True, (0, 0, 0))
+                text_rect = text_surface.get_rect(center=(j * TILE_SIZE + TILE_SIZE // 2, i * TILE_SIZE + TILE_SIZE // 2))
+                win.blit(text_surface, text_rect)
+    while True:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit(0)
+        draw_map()
+        pygame.display.flip()
+        clock.tick(30)
+
 if __name__ == '__main__':
     board = InputBoard()
     answer = GetAnswer(board)
-    print(answer)
+    display(answer)
