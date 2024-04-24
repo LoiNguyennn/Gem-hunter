@@ -1,6 +1,7 @@
 import fileinput
 from itertools import combinations
 from pysat.solvers import Glucose3
+import random
 import pygame
 import sys
 
@@ -32,16 +33,17 @@ def CellID(board, cell):
 def convertResult(answer, board):
     size = len(board[0])
     result = []
-    for i in range(int(len(answer)/size)):
+    for i in range(len(board)):
         line = []
         for j in range(size):
-            
-            if answer[i*size + j] > 0:
-                element = 'T'
-            elif board[i][j] != '_':
+            if board[i][j] != '_':
                 element = board[i][j]
             else:
-                element = 'G'
+                if (answer[i * len(board[0]) + j]):
+                    element = 'T'
+                else:
+                    element = 'G'
+
             line.append(element)
         result.append(line)
     return result
@@ -92,6 +94,68 @@ def GenerateCNF(truth_table, dnf_clauses):
 def de_morgan(clause):
     return [-literal for literal in clause]
 
+def walksat(board, clauses, p=0.5, max_flips=10000):
+    # Initialize a random assignment
+    assignment = {}
+    list_num = []
+    for i in range(len(board)):
+        for j in range(len(board[0])):
+            if board[i][j] != '_':
+                assignment[(i * len(board[0]) + j) + 1] = False
+            else:
+                assignment[(i * len(board[0]) + j) + 1] = random.choice([True, False])
+                list_num.append(i * len(board[0]) + j)
+    assignment = list(assignment.values())
+    print("Initial random assignment:", assignment)
+    for i in range(max_flips):
+        # Select an unsatisfied clause 
+        unsatisfied = [c for c in clauses if not satisfies(c,assignment)]
+        if not unsatisfied: 
+            return assignment
+        
+        clause = random.choice(unsatisfied)
+        
+        # With probability p, flip a random variable 
+        if random.random() < p:
+            var = random.choice(list_num)
+        else:
+            # Otherwise, flip var that maximizes no. of satisfied clauses
+            var = choose_var(clause, assignment)
+        
+        assignment[var] = not assignment[var]
+        
+    return None # Failed to satisfy
+
+def satisfies(clause, assignment):
+    for x in clause:
+        if assignment[abs(x) - 1] == (x > 0):
+            return True
+
+    return False
+
+def choose_var(clause, assignment):
+    # Flip var that minimizes no. of broken clauses
+    min_broken = len(clause) + 1
+    var = None
+    for x in clause:
+        if x > 0:
+            tmp = assignment[:]
+            tmp[abs(x)-1] = False
+        else:
+            tmp = assignment[:]
+            tmp[abs(x)-1] = True
+            
+        # clause is a single literal, so broken is 0 or 1
+        if not satisfies(clause, tmp):
+            broken = 1 
+        else:
+            broken = 0
+
+        if broken < min_broken:
+            min_broken = broken
+            var = abs(x) - 1
+    return var
+
 def GetAnswer(board):
     cnfs = []
     existed = set() # remove duplicate
@@ -107,14 +171,26 @@ def GetAnswer(board):
                     else:
                         existed.add(tuple(clause))
                 cnfs.append(cnf)
-                
-    solver = Glucose3()
+    
+    clauses = []
+    num_variables = 0
     for cnf in cnfs:
         for clause in cnf:
-            solver.add_clause(clause)
-    if solver.solve():
-        return convertResult(solver.get_model(), board)
-    return None
+            clauses.append(clause)
+            num_variables = max(num_variables, max(abs(l) for l in clause))
+    # solver = Glucose3()
+    # for cnf in cnfs:
+    #     for clause in cnf:
+    #         solver.add_clause(clause)
+    
+    # if solver.solve():
+    #     return solver.get_model()
+    assignment = walksat(board, clauses)
+
+    if assignment is None:
+        return None
+    
+    return assignment
 
 def display(_map):
     pygame.init()
@@ -150,5 +226,24 @@ def display(_map):
 
 if __name__ == '__main__':
     board = InputBoard()
+    print(board)
     answer = GetAnswer(board)
-    display(answer)
+
+    fo = open('output.txt', 'w')
+    for i in range(len(board)):
+        for j in range(len(board[0])):
+            if board[i][j] != '_':
+                fo.write(str(board[i][j]))
+            else:
+                if (answer[i * len(board[0]) + j]):
+                    fo.write('T')
+                else:
+                    fo.write('G')
+            if not (i == len(board) - 1 and j == len(board[0]) - 1):
+                if j == len(board[0]) - 1:
+                    fo.write("\n")
+                else:
+                    fo.write(", ")
+    fo.close()
+
+    display(convertResult(answer, board))
