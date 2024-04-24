@@ -22,6 +22,23 @@ def SurroundingCells(board, x, y):
 def CellID(board, cell):
     return cell[0] * len(board[0]) + cell[1] + 1
 
+def convertResult(answer, board):
+    size = len(board[0])
+    result = []
+    for i in range(int(len(answer)/size)):
+        line = []
+        for j in range(size):
+            
+            if answer[i*size + j] > 0:
+                element = 'T'
+            elif board[i][j] != '_':
+                element = board[i][j]
+            else:
+                element = 'G'
+            line.append(element)
+        result.append(line)
+    return result
+
 def GenerateDNF(board, i, j):
     dnf = []
     surrounding_cells = SurroundingCells(board, i, j)
@@ -89,7 +106,7 @@ def GetAnswer(board):
         for clause in cnf:
             solver.add_clause(clause)
     if solver.solve():
-        return solver.get_model()
+        return convertResult(solver.get_model(), board)
     return None
 
 if __name__ == '__main__':
