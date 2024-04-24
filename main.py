@@ -15,7 +15,7 @@ def SurroundingCells(board, x, y):
     for dir in DIRECTION:
         x1 = x + dir[0]
         y1 = y + dir[1]
-        if x1 >= 0 and x1 < len(board) and y1 >= 0 and y1 < len(board[0]) and board[x1][y1] == '_':
+        if x1 >= 0 and x1 < len(board) and y1 >= 0 and y1 < len(board[0]):
             surrounding_cells.append((x1, y1))
     return surrounding_cells
         
