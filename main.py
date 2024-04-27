@@ -30,24 +30,6 @@ def SurroundingCells(board, x, y):
 def CellID(board, cell):
     return cell[0] * len(board[0]) + cell[1] + 1
 
-def convertResult(answer, board):
-    size = len(board[0])
-    result = []
-    for i in range(len(board)):
-        line = []
-        for j in range(size):
-            if board[i][j] != '_':
-                element = board[i][j]
-            else:
-                if (answer[i * len(board[0]) + j]):
-                    element = 'T'
-                else:
-                    element = 'G'
-
-            line.append(element)
-        result.append(line)
-    return result
-
 def GenerateDNF(board, i, j):
     dnf = []
     surrounding_cells = SurroundingCells(board, i, j)
@@ -106,7 +88,6 @@ def walksat(board, clauses, p=0.5, max_flips=10000):
                 assignment[(i * len(board[0]) + j) + 1] = random.choice([True, False])
                 list_num.append(i * len(board[0]) + j)
     assignment = list(assignment.values())
-    print("Initial random assignment:", assignment)
     for i in range(max_flips):
         # Select an unsatisfied clause 
         unsatisfied = [c for c in clauses if not satisfies(c,assignment)]
@@ -156,7 +137,7 @@ def choose_var(clause, assignment):
             var = abs(x) - 1
     return var
 
-def GetAnswer(board):
+def bruteForce(board):
     cnfs = []
     existed = set() # remove duplicate
     for i in range(len(board)):
@@ -189,10 +170,70 @@ def GetAnswer(board):
 
     if assignment is None:
         return None
-    
+    assignment = convertResult(assignment, board)
     return assignment
 
-def display(_map):
+###Back tracking algorithm
+def check_valid(board, i, j):
+    for dir in DIRECTION:
+        x = i + dir[0]
+        y = j + dir[1]
+        if x >= 0 and x < len(board) and y >= 0 and y < len(board[0]) and board[x][y].isdigit():
+            count = 0
+            for dir2 in DIRECTION:
+                x2 = x + dir2[0]
+                y2 = y + dir2[1]
+                if x2 >= 0 and x2 < len(board) and y2 >= 0 and y2 < len(board[0]) and board[x2][y2] == 'T':
+                    count += 1
+            if count > int(board[x][y]):
+                return False
+    return True
+
+def backtrack(board, i, j):
+    if i == len(board) and j == 0:
+        return True
+    elif j == len(board[0]):
+        return backtrack(board, i + 1, 0)
+    elif i == len(board):
+        return False
+    elif board[i][j] != '_':
+        return backtrack(board, i, j + 1)
+    else:
+        for value in ['T', 'G']:
+            board[i][j] = value
+            if check_valid(board, i, j):
+                if backtrack(board, i, j + 1):
+                    return True
+            board[i][j] = '_'
+        return False
+    
+def backtracking(board):
+    if backtrack(board, 0, 0):
+        return board
+    else:
+        return None
+
+###GET RESULT###
+def getAnswer(board, function):
+    return function([row.copy() for row in board])
+
+def convertResult(answer, board):
+    size = len(board[0])
+    result = []
+    for i in range(len(board)):
+        line = []
+        for j in range(size):  
+            if board[i][j] != '_':
+                element = board[i][j]
+            elif answer[i*size + j] > 0:
+                element = 'T'
+            else:
+                element = 'G'
+            line.append(element)
+        result.append(line)
+    return result
+
+def displayResult(_map):
     pygame.init()
     pygame.font.init()
     font = pygame.font.SysFont('Arial', 22)
@@ -227,23 +268,13 @@ def display(_map):
 if __name__ == '__main__':
     board = InputBoard()
     print(board)
-    answer = GetAnswer(board)
+    answer = getAnswer(board, backtracking)
 
     fo = open('output.txt', 'w')
     for i in range(len(board)):
-        for j in range(len(board[0])):
-            if board[i][j] != '_':
-                fo.write(str(board[i][j]))
-            else:
-                if (answer[i * len(board[0]) + j]):
-                    fo.write('T')
-                else:
-                    fo.write('G')
-            if not (i == len(board) - 1 and j == len(board[0]) - 1):
-                if j == len(board[0]) - 1:
-                    fo.write("\n")
-                else:
-                    fo.write(", ")
+        for j in range(len(board[0]) - 1):
+            fo.write(answer[i][j] + ", ")
+        fo.write(answer[i][j+1] + "\n")
     fo.close()
-
-    display(convertResult(answer, board))
+    
+    displayResult(answer)
