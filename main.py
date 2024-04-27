@@ -14,7 +14,7 @@ DIRECTION = [(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1
 
 def InputBoard():
     board = []
-    for line in fileinput.input('input.txt'):
+    for line in fileinput.input('input5x5.txt'):
         board.append(line.strip().split(', '))
     return board
 
@@ -267,7 +267,7 @@ def displayResult(_map):
 
 if __name__ == '__main__':
     board = InputBoard()
-    print(board)
+    #print(board)
     answer = getAnswer(board, backtracking)
 
     fo = open('output.txt', 'w')
@@ -278,3 +278,4 @@ if __name__ == '__main__':
     fo.close()
     
     displayResult(answer)
+    
