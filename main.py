@@ -217,29 +217,25 @@ def backtracking(board):
 def getAnswer(board, function):
     return function([row.copy() for row in board])
 
-def convertResult(answer, board):
-    size = len(board[0])
-    result = []
+def convertResult(assignment, board):
+    result = [['G' for _ in range(len(board[0]))] for _ in range(len(board))]
     for i in range(len(board)):
-        line = []
-        for j in range(size):  
+        for j in range(len(board[0])):
             if board[i][j] != '_':
-                element = board[i][j]
-            elif answer[i*size + j] > 0:
-                element = 'T'
+                result[i][j] = board[i][j]
             else:
-                element = 'G'
-            line.append(element)
-        result.append(line)
+                if assignment[i * len(board[0]) + j] == 1:
+                    result[i][j] = 'T'
     return result
 
 def displayResult(_map):
     pygame.init()
     pygame.font.init()
-    font = pygame.font.SysFont('Arial', 22)
     col = len(_map[0])
     row = len(_map)
-    win = pygame.display.set_mode((row * TILE_SIZE, col * TILE_SIZE))
+    tile_size = min(70, 800//col)
+    font = pygame.font.SysFont('Arial', 22)
+    win = pygame.display.set_mode((col * tile_size, row * tile_size))
     pygame.display.set_caption('Gem Hunter')
     clock = pygame.time.Clock()
     def draw_map():
@@ -251,10 +247,10 @@ def displayResult(_map):
                     color = GOLD_COLOR
                 else:
                     color = BLANK_COLOR
-                pygame.draw.rect(win, color, (j * TILE_SIZE, i * TILE_SIZE, TILE_SIZE - 2, TILE_SIZE - 2))
+                pygame.draw.rect(win, color, (j * tile_size, i * tile_size, tile_size - 2, tile_size - 2))
                 letter = str(_map[i][j])
                 text_surface = font.render(letter, True, (0, 0, 0))
-                text_rect = text_surface.get_rect(center=(j * TILE_SIZE + TILE_SIZE // 2, i * TILE_SIZE + TILE_SIZE // 2))
+                text_rect = text_surface.get_rect(center=(j * tile_size + tile_size // 2, i * tile_size + tile_size // 2))
                 win.blit(text_surface, text_rect)
     while True:
         for event in pygame.event.get():
