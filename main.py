@@ -14,7 +14,7 @@ DIRECTION = [(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1
 
 def InputBoard():
     board = []
-    for line in fileinput.input('input5x5.txt'):
+    for line in fileinput.input('input4x4.txt'):
         board.append(line.strip().split(', '))
     return board
 
@@ -307,12 +307,13 @@ def displayResult(_map):
                 sys.exit(0)
         draw_map()
         pygame.display.flip()
-        clock.tick(30)
+        clock.tick(30)          
 
 if __name__ == '__main__':
     board = InputBoard()
+  
     # print(board)
-    answer = getAnswer(board, bruteForce)
+    answer = getAnswer(board, PySat)
     print(answer)
     fo = open('output.txt', 'w')
     for i in range(len(board)):

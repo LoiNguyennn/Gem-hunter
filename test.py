@@ -20,6 +20,32 @@ def CheckingTruthTable(truth_table, dnf_clauses):
         res.append(OR)
     return res
 
+def genInput(board):
+    answer = [[0 for col in range(len(board[0]))] for row in range(len(board))]
+    for row in board:
+        print(row)
+
+    for i in range(len(board)):
+        for j in range(len(board[0])):
+            if board[i][j] == 'T':
+                for dir in DIRECTION:
+                    x = i + dir[0]
+                    y = j + dir[1]
+                    if x >= 0 and x < len(board) and y >= 0 and y < len(board[0]):
+                        answer[x][y] += 1
+    
+    
+    for i in range(len(answer)):
+        for j in range(len(answer[0])):
+            if answer[i][j] == 0:
+                answer[i][j] = '_'
+            if board[i][j] != '0':
+                answer[i][j] = '_'
+    for row in answer:
+        for col in row:
+            print(col, end=', ')
+        print()
+
 def de_morgan(clause):
     return [-literal for literal in clause]
 
