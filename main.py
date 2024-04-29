@@ -25,7 +25,7 @@ def SurroundingCells(board, x, y):
     for dir in DIRECTION:
         x1 = x + dir[0]
         y1 = y + dir[1]
-        if x1 >= 0 and x1 < len(board) and y1 >= 0 and y1 < len(board[0]):
+        if x1 >= 0 and x1 < len(board) and y1 >= 0 and y1 < len(board[0]) and board[x1][y1] == '_':
             surrounding_cells.append((x1, y1))
     return surrounding_cells
         
@@ -78,21 +78,76 @@ def GenerateCNF(truth_table, dnf_clauses):
 def de_morgan(clause):
     return [-literal for literal in clause]
 
-def walksat(board, clauses, p=0.5, max_flips=10000):
+def cmp(e):
+    return len(e)
+
+def generate_clauses(board):
+    cnfs = []
+    existed = set() # remove duplicate
+    for i in range(len(board)):
+        for j in range(len(board[0])):
+            if board[i][j] != '_':
+                dnf = GenerateDNF(board, i, j)
+                truth_table = GenerateTruthTable(dnf)
+                cnf = GenerateCNF(truth_table, dnf)
+                for clause in cnf:
+                    if tuple(clause) in existed:
+                        cnf.pop(cnf.index(clause))
+                    else:
+                        existed.add(tuple(clause))
+                cnfs.append(cnf)
+    
+    clauses = []
+    for cnf in cnfs:
+        for clause in cnf:
+            clauses.append(clause)
+    
+    clauses.sort()
+    clauses.sort(key=cmp)
+
+    while len(clauses[0]) == 1:
+        for clause in clauses:
+            if len(clause) == 1:
+                if clause[0] > 0:
+                    if clause[0] % len(board[0]) == 0:
+                        board[int(clause[0] / len(board[0])) - 1][len(board[0]) - 1] = 'T'
+                    else:
+                        board[int(clause[0] / len(board[0]))][clause[0] % len(board[0]) - 1] = 'T'
+                else:
+                    if abs(clause[0]) % len(board[0]) == 0:
+                        board[int(abs(clause[0]) / len(board[0])) - 1][len(board[0]) - 1] = 'G'
+                    else:
+                        board[int(abs(clause[0]) / len(board[0]))][abs(clause[0]) % len(board[0]) - 1] = 'G'
+                clauses.remove(clause)
+                tmp = []
+                tmp.append(-clause[0])
+                for c in clauses:
+                    if clause[0] in c:
+                        clauses.remove(c)
+                    if tmp[0] in c:
+                        c.remove(tmp[0])
+        clauses.sort()
+        clauses.sort(key=cmp)
+    return clauses
+
+def walksat(board, clauses, p=0.5, max_flips=1000000):
     # Initialize a random assignment
     assignment = {}
     list_num = []
     for i in range(len(board)):
         for j in range(len(board[0])):
-            if board[i][j] != '_':
+            if board[i][j] != '_' and board[i][j] != 'T':
                 assignment[(i * len(board[0]) + j) + 1] = False
+            elif board[i][j] == 'T':
+                assignment[(i * len(board[0]) + j) + 1] = True
             else:
                 assignment[(i * len(board[0]) + j) + 1] = random.choice([True, False])
                 list_num.append(i * len(board[0]) + j)
     assignment = list(assignment.values())
+    
     for i in range(max_flips):
         # Select an unsatisfied clause 
-        unsatisfied = [c for c in clauses if not satisfies(c,assignment)]
+        unsatisfied = [c for c in clauses if not satisfies(c, assignment)]
         if not unsatisfied: 
             return assignment
         
@@ -100,7 +155,7 @@ def walksat(board, clauses, p=0.5, max_flips=10000):
         
         # With probability p, flip a random variable 
         if random.random() < p:
-            var = random.choice(list_num)
+            var = abs(random.choice(clause)) - 1
         else:
             # Otherwise, flip var that maximizes no. of satisfied clauses
             var = choose_var(clause, assignment)
@@ -120,13 +175,14 @@ def choose_var(clause, assignment):
     # Flip var that minimizes no. of broken clauses
     min_broken = len(clause) + 1
     var = None
+    
     for x in clause:
         if x > 0:
             tmp = assignment[:]
-            tmp[abs(x)-1] = False
+            tmp[abs(x) - 1] = False
         else:
             tmp = assignment[:]
-            tmp[abs(x)-1] = True
+            tmp[abs(x) - 1] = True
             
         # clause is a single literal, so broken is 0 or 1
         if not satisfies(clause, tmp):
@@ -168,30 +224,11 @@ def PySat(board):
 
 ###Optimal solution###
 def optimal(board):
-    cnfs = []
-    existed = set() # remove duplicate
-    for i in range(len(board)):
-        for j in range(len(board[0])):
-            if board[i][j] != '_':
-                dnf = GenerateDNF(board, i, j)
-                truth_table = GenerateTruthTable(dnf)
-                cnf = GenerateCNF(truth_table, dnf)
-                cnf.append([-CellID(board, (i, j))])
-                for clause in cnf:
-                    if tuple(clause) in existed:
-                        cnf.pop(cnf.index(clause))
-                    else:
-                        existed.add(tuple(clause))
-                cnfs.append(cnf)
-    
     clauses = []
-    num_variables = 0
-    for cnf in cnfs:
-        for clause in cnf:
-            clauses.append(clause)
-            num_variables = max(num_variables, max(abs(l) for l in clause))
+    clauses = generate_clauses(board)
 
     assignment = walksat(board, clauses)
+
     if assignment is None:
         return None
     return assignment
@@ -244,7 +281,6 @@ def bruteForce(board):
 
     assignment = brute_force_sat(clauses)
 
-    # assignment = walksat(board, clauses)
     if assignment is None:
         return None
     return assignment
@@ -299,7 +335,7 @@ def displayResult(_map):
         clock.tick(30)          
 
 if __name__ == '__main__':
-    board = InputBoard("input5x5")
+    board = InputBoard("input20x20")
   
     # print(board)
     runtime = time.time()
