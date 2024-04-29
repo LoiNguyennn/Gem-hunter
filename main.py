@@ -163,8 +163,6 @@ def PySat(board):
     
     if solver.solve():
         assignment = solver.get_model()
-        print(assignment)
-        assignment = convertResult(assignment, board)
         return assignment
     return None
 
@@ -196,9 +194,7 @@ def optimal(board):
     assignment = walksat(board, clauses)
     if assignment is None:
         return None
-    assignment = convertResult(assignment, board)
     return assignment
-
 
 ###Brute force algorithm###    
 def brute_force_sat(cnf):
@@ -251,13 +247,11 @@ def bruteForce(board):
     # assignment = walksat(board, clauses)
     if assignment is None:
         return None
-    assignment = convertResult(assignment, board)
     return assignment
 
 ###GET RESULT###
 def getAnswer(board, function):
-    puzzle = deepcopy(board)
-    answer = convertResult(function(puzzle), board)
+    answer = convertResult(function(board), board)
     return answer
 
 def convertResult(assignment, board):
@@ -305,13 +299,32 @@ def displayResult(_map):
         clock.tick(30)          
 
 if __name__ == '__main__':
-    board = InputBoard("input4x5")
+    board = InputBoard("input5x5")
   
     # print(board)
-    run_time = time.time()
+    runtime = time.time()
+    answer_py = getAnswer(board, PySat)
+    runtime = time.time() - runtime
+    print(f"pysat solution time: {runtime} s")
+    run_time1 = time.time()
     answer = getAnswer(board, backtrack)
-    run_time = time.time() - run_time
-    print(run_time)
+    run_time1 = time.time() - run_time1
+    print(f"Backtracking time: {run_time1} s")
+    if answer != answer_py:
+        print("wrong answer")
+    run_time2 = time.time()
+    answer = getAnswer(board, bruteForce)
+    run_time2 = time.time() - run_time2
+    print(f"Brute-force time: {run_time2} s")
+    if answer != answer_py:
+        print("wrong answer")
+    run_time3 = time.time()
+    answer = getAnswer(board, optimal)
+    run_time3 = time.time() - run_time3
+    print(f"optimal solution time: {run_time3} s")
+    if answer != answer_py:
+        print("wrong answer")
+
     fo = open('output.txt', 'w')
     for i in range(len(board)):
         for j in range(len(board[0]) - 1):

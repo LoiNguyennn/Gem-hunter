@@ -1,6 +1,4 @@
-import fileinput
 from itertools import combinations
-from copy import deepcopy
 
 DIRECTION = [(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1)]
 
@@ -30,6 +28,9 @@ def GenerateDNF(board, i, j):
         dnf.append(clause)  
     return dnf
 
+def de_morgan(clause):
+    return [-literal for literal in clause]
+
 def check_valid(clauses, assignment: dict):
     if clauses == []:
         return True
@@ -44,26 +45,24 @@ def check_valid(clauses, assignment: dict):
             return True
     return False
 
-def DPLL(clauses, symbol, assignment={}):
+def simpleDPLL(clauses, symbols, assignment={}):
     if all(check_valid(clause, assignment) for clause in clauses):
         return True, assignment
-    if len(symbol) == 0:
+    if len(symbols) == 0:
         return False, {}
-
-    #get all the literals that not in assignment
-    unassigned_symbol = deepcopy(symbol)
-    literal = unassigned_symbol.pop()
-    new_assignment = deepcopy(assignment)
-    new_assignment[abs(literal)] = literal > 0
-    result, final_assignment = DPLL(clauses, unassigned_symbol, new_assignment)
+    
+    unassigned_symbols = set(symbols)
+                    
+    literal = unassigned_symbols.pop()
+    assignment[abs(literal)] = True
+    result, final_assignment = simpleDPLL(clauses, unassigned_symbols, assignment)
     if result:
         return True, final_assignment
-    new_assignment = deepcopy(assignment)
-    new_assignment[abs(literal)] = literal < 0
-    return DPLL(clauses, unassigned_symbol, new_assignment)
+    assignment[abs(literal)] = False
+    return simpleDPLL(clauses, unassigned_symbols, assignment)
 
 def backtrack(board):
-    cnfs = []
+    cnf = []
     existed = set() 
     for i in range(len(board)):
         for j in range(len(board[0])):
@@ -74,15 +73,31 @@ def backtrack(board):
                         dnf.pop(dnf.index(clause))
                     else:
                         existed.add(tuple(clause))
-                cnfs.append(dnf)
-    
-    clauses = []
-    for cnf in cnfs:
-        for clause in cnf:
-            clauses.append(clause)
+                cnf.append(dnf)
 
     assignment = {}
-    satisfiable, assignment = DPLL(cnfs, list(set([abs(literal) for clause in clauses for literal in clause])), assignment)
+    pure_symbols = {}
+    impure_symbols = []
+
+    # Find pure symbols
+    for dnf in cnf:
+        for clause in dnf:
+            for lit in clause:
+                if abs(lit) not in impure_symbols:
+                    if abs(lit) in pure_symbols:
+                        if pure_symbols[abs(lit)] != (lit > 0):
+                            del pure_symbols[abs(lit)]
+                            impure_symbols.append(abs(lit))
+                    else:
+                        pure_symbols[abs(lit)] = (lit > 0)
+    # Remove pure symbols from clauses and unassigned symbols
+    for lit, value in pure_symbols.items():
+        assignment[lit] = value
+        for dnf in cnf:
+            for i, clause in enumerate(dnf):
+                dnf[i] = [lit for lit in clause if abs(lit) not in pure_symbols]
+                
+    satisfiable, assignment = simpleDPLL(cnf, impure_symbols, assignment)
     if satisfiable:
         result = [-1] * (len(board) * len(board[0]))
         for var, value in assignment.items():
