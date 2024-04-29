@@ -1,199 +1,12 @@
-import fileinput
-from itertools import combinations, product
 from pysat.solvers import Glucose3
 from backtrack import *
+from cnf import *
+from optimal import *
+from bruteforce import *
 import time
-import random
 import pygame
 import sys
 
-TILE_SIZE = 70
-GOLD_COLOR = (255, 255, 204)
-TRAP_COLOR = (153, 255, 204)
-BLANK_COLOR = (179, 175, 249)
-
-DIRECTION = [(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1)]
-
-def InputBoard(filename):
-    board = []
-    for line in fileinput.input(filename + '.txt'):
-        board.append(line.strip().split(', '))
-    return board
-
-def SurroundingCells(board, x, y):
-    surrounding_cells = []
-    for dir in DIRECTION:
-        x1 = x + dir[0]
-        y1 = y + dir[1]
-        if x1 >= 0 and x1 < len(board) and y1 >= 0 and y1 < len(board[0]) and board[x1][y1] == '_':
-            surrounding_cells.append((x1, y1))
-    return surrounding_cells
-        
-def CellID(board, cell):
-    return cell[0] * len(board[0]) + cell[1] + 1
-
-def GenerateDNF(board, i, j):
-    dnf = []
-    surrounding_cells = SurroundingCells(board, i, j)
-    for combination in combinations(surrounding_cells, int(board[i][j])):
-        clause = []
-        for cell in surrounding_cells:
-            cell_id = CellID(board, cell)
-            if cell in combination:
-                clause.append(cell_id)  # cell is a trap
-            else:
-                clause.append(-cell_id)  # cell is not a trap
-        dnf.append(clause)  
-    return dnf
-
-def GenerateTruthTable(dnf_clauses):
-    num_variables = len(set([abs(literal) for clause in dnf_clauses for literal in clause]))
-    truth_table = []
-    for i in range(2 ** num_variables):
-        truth_table.append([])
-        for j in range(num_variables):
-            truth_table[-1].append((i >> j) & 1)
-    
-    return truth_table
-
-def GenerateCNF(truth_table, dnf_clauses):
-    #return an array of True/False values
-    cnf = []
-    i = 0
-    for row in truth_table:
-        OR = False
-        for clause in dnf_clauses:
-            sorted_literal_index = sorted([abs(literal) for literal in clause])
-
-            AND = True
-            for literal in clause:
-                idx = sorted_literal_index.index(abs(literal))
-                AND &= row[idx] if literal > 0 else not row[idx]
-            OR |= AND
-        if OR == False:
-            cnf.append(de_morgan([sorted_literal_index[literal] if truth_table[i][literal] == 1 else -1 * sorted_literal_index[literal] for literal in range(len(truth_table[i]))]))
-        i += 1
-    return cnf
-
-def de_morgan(clause):
-    return [-literal for literal in clause]
-
-def cmp(e):
-    return len(e)
-
-def generate_clauses(board):
-    cnfs = []
-    existed = set() # remove duplicate
-    for i in range(len(board)):
-        for j in range(len(board[0])):
-            if board[i][j] != '_':
-                dnf = GenerateDNF(board, i, j)
-                truth_table = GenerateTruthTable(dnf)
-                cnf = GenerateCNF(truth_table, dnf)
-                for clause in cnf:
-                    if tuple(clause) in existed:
-                        cnf.pop(cnf.index(clause))
-                    else:
-                        existed.add(tuple(clause))
-                cnfs.append(cnf)
-    
-    clauses = []
-    for cnf in cnfs:
-        for clause in cnf:
-            clauses.append(clause)
-    
-    clauses.sort()
-    clauses.sort(key=cmp)
-
-    while len(clauses[0]) == 1:
-        for clause in clauses:
-            if len(clause) == 1:
-                if clause[0] > 0:
-                    if clause[0] % len(board[0]) == 0:
-                        board[int(clause[0] / len(board[0])) - 1][len(board[0]) - 1] = 'T'
-                    else:
-                        board[int(clause[0] / len(board[0]))][clause[0] % len(board[0]) - 1] = 'T'
-                else:
-                    if abs(clause[0]) % len(board[0]) == 0:
-                        board[int(abs(clause[0]) / len(board[0])) - 1][len(board[0]) - 1] = 'G'
-                    else:
-                        board[int(abs(clause[0]) / len(board[0]))][abs(clause[0]) % len(board[0]) - 1] = 'G'
-                clauses.remove(clause)
-                tmp = []
-                tmp.append(-clause[0])
-                for c in clauses:
-                    if clause[0] in c:
-                        clauses.remove(c)
-                    if tmp[0] in c:
-                        c.remove(tmp[0])
-        clauses.sort()
-        clauses.sort(key=cmp)
-    return clauses
-
-def walksat(board, clauses, p=0.5, max_flips=1000000):
-    # Initialize a random assignment
-    assignment = {}
-    list_num = []
-    for i in range(len(board)):
-        for j in range(len(board[0])):
-            if board[i][j] != '_' and board[i][j] != 'T':
-                assignment[(i * len(board[0]) + j) + 1] = False
-            elif board[i][j] == 'T':
-                assignment[(i * len(board[0]) + j) + 1] = True
-            else:
-                assignment[(i * len(board[0]) + j) + 1] = random.choice([True, False])
-                list_num.append(i * len(board[0]) + j)
-    assignment = list(assignment.values())
-    
-    for i in range(max_flips):
-        # Select an unsatisfied clause 
-        unsatisfied = [c for c in clauses if not satisfies(c, assignment)]
-        if not unsatisfied: 
-            return assignment
-        
-        clause = random.choice(unsatisfied)
-        
-        # With probability p, flip a random variable 
-        if random.random() < p:
-            var = abs(random.choice(clause)) - 1
-        else:
-            # Otherwise, flip var that maximizes no. of satisfied clauses
-            var = choose_var(clause, assignment)
-        
-        assignment[var] = not assignment[var]
-        
-    return None # Failed to satisfy
-
-def satisfies(clause, assignment):
-    for x in clause:
-        if assignment[abs(x) - 1] == (x > 0):
-            return True
-
-    return False
-
-def choose_var(clause, assignment):
-    # Flip var that minimizes no. of broken clauses
-    min_broken = len(clause) + 1
-    var = None
-    
-    for x in clause:
-        if x > 0:
-            tmp = assignment[:]
-            tmp[abs(x) - 1] = False
-        else:
-            tmp = assignment[:]
-            tmp[abs(x) - 1] = True
-            
-        # clause is a single literal, so broken is 0 or 1
-        if not satisfies(clause, tmp):
-            broken = 1 
-        else:
-            broken = 0
-
-        if broken < min_broken:
-            min_broken = broken
-            var = abs(x) - 1
-    return var
 
 ###Pysat solver####
 def PySat(board):
@@ -222,72 +35,12 @@ def PySat(board):
         return assignment
     return None
 
-###Optimal solution###
-def optimal(board):
-    clauses = []
-    clauses = generate_clauses(board)
-
-    assignment = walksat(board, clauses)
-
-    if assignment is None:
-        return None
-    return assignment
-
 ###Brute force algorithm###    
-def brute_force_sat(cnf):
-    # Get all the variables in the CNF
-    variables = {abs(x) for clause in cnf for x in clause}
-
-    # Generate all possible assignments
-    for assignment in product([False, True], repeat=len(variables)):
-        assignment = {var: val for var, val in zip(variables, assignment)}
-
-        # Check if this assignment satisfies the CNF
-        if all(any(assignment[abs(x)] == (x > 0) for x in clause) for clause in cnf):
-            # If it does, return it
-            answer = []
-            for key in assignment:
-                if assignment[key] == True:
-                    answer.append(key)
-                else:
-                    answer.append(-key)
-            return answer
-    # If no satisfying assignment was found, return None
-    return None
-
-def bruteForce(board):
-    cnfs = []
-    existed = set() # remove duplicate
-    for i in range(len(board)):
-        for j in range(len(board[0])):
-            if board[i][j] != '_':
-                dnf = GenerateDNF(board, i, j)
-                truth_table = GenerateTruthTable(dnf)
-                cnf = GenerateCNF(truth_table, dnf)
-                cnf.append([-CellID(board, (i, j))])
-                for clause in cnf:
-                    if tuple(clause) in existed:
-                        cnf.pop(cnf.index(clause))
-                    else:
-                        existed.add(tuple(clause))
-                cnfs.append(cnf)
-    
-    clauses = []
-    num_variables = 0
-    for cnf in cnfs:
-        for clause in cnf:
-            clauses.append(clause)
-            num_variables = max(num_variables, max(abs(l) for l in clause))
-
-    assignment = brute_force_sat(clauses)
-
-    if assignment is None:
-        return None
-    return assignment
 
 ###GET RESULT###
 def getAnswer(board, function):
-    answer = convertResult(function(board), board)
+    puzzle = deepcopy(board)
+    answer = convertResult(function(puzzle), puzzle)
     return answer
 
 def convertResult(assignment, board):
@@ -334,32 +87,36 @@ def displayResult(_map):
         pygame.display.flip()
         clock.tick(30)          
 
+
 if __name__ == '__main__':
-    board = InputBoard("input20x20")
-  
+    board = InputBoard("input50x50")
+    i = deepcopy(board)
     # print(board)
     runtime = time.time()
     answer_py = getAnswer(board, PySat)
     runtime = time.time() - runtime
     print(f"pysat solution time: {runtime} s")
+    # Optimal solution (walksat)
     run_time1 = time.time()
-    answer = getAnswer(board, backtrack)
-    run_time1 = time.time() - run_time1
-    print(f"Backtracking time: {run_time1} s")
-    if answer != answer_py:
-        print("wrong answer")
-    run_time2 = time.time()
-    answer = getAnswer(board, bruteForce)
-    run_time2 = time.time() - run_time2
-    print(f"Brute-force time: {run_time2} s")
-    if answer != answer_py:
-        print("wrong answer")
-    run_time3 = time.time()
     answer = getAnswer(board, optimal)
-    run_time3 = time.time() - run_time3
-    print(f"optimal solution time: {run_time3} s")
+    run_time1 = time.time() - run_time1
+    print(f"Optimal solution time: {run_time1} s")
     if answer != answer_py:
         print("wrong answer")
+    # Backtracking
+    run_time2 = time.time()
+    answer = getAnswer(board, backtrack)
+    run_time2 = time.time() - run_time2
+    print(f"Backtracking solver time: {run_time2} s")
+    if answer != answer_py:
+        print("wrong answer")
+    # #Brute-force
+    # run_time3 = time.time()
+    # answer = getAnswer(board, bruteForce)
+    # run_time3 = time.time() - run_time3
+    # print(f"Brute-force solver time: {run_time3} s")
+    # if answer != answer_py:
+    #     print("wrong answer")
 
     fo = open('output.txt', 'w')
     for i in range(len(board)):
