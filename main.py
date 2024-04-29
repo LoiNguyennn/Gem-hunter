@@ -1,6 +1,8 @@
 import fileinput
 from itertools import combinations, product
 from pysat.solvers import Glucose3
+from backtrack import *
+import time
 import random
 import pygame
 import sys
@@ -12,9 +14,9 @@ BLANK_COLOR = (179, 175, 249)
 
 DIRECTION = [(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1)]
 
-def InputBoard():
+def InputBoard(filename):
     board = []
-    for line in fileinput.input('input4x4.txt'):
+    for line in fileinput.input(filename + '.txt'):
         board.append(line.strip().split(', '))
     return board
 
@@ -137,6 +139,7 @@ def choose_var(clause, assignment):
             var = abs(x) - 1
     return var
 
+###Pysat solver####
 def PySat(board):
     cnfs = []
     existed = set() # remove duplicate
@@ -160,10 +163,44 @@ def PySat(board):
     
     if solver.solve():
         assignment = solver.get_model()
+        print(assignment)
         assignment = convertResult(assignment, board)
         return assignment
     return None
+
+###Optimal solution###
+def optimal(board):
+    cnfs = []
+    existed = set() # remove duplicate
+    for i in range(len(board)):
+        for j in range(len(board[0])):
+            if board[i][j] != '_':
+                dnf = GenerateDNF(board, i, j)
+                truth_table = GenerateTruthTable(dnf)
+                cnf = GenerateCNF(truth_table, dnf)
+                cnf.append([-CellID(board, (i, j))])
+                for clause in cnf:
+                    if tuple(clause) in existed:
+                        cnf.pop(cnf.index(clause))
+                    else:
+                        existed.add(tuple(clause))
+                cnfs.append(cnf)
     
+    clauses = []
+    num_variables = 0
+    for cnf in cnfs:
+        for clause in cnf:
+            clauses.append(clause)
+            num_variables = max(num_variables, max(abs(l) for l in clause))
+
+    assignment = walksat(board, clauses)
+    if assignment is None:
+        return None
+    assignment = convertResult(assignment, board)
+    return assignment
+
+
+###Brute force algorithm###    
 def brute_force_sat(cnf):
     # Get all the variables in the CNF
     variables = {abs(x) for clause in cnf for x in clause}
@@ -217,49 +254,11 @@ def bruteForce(board):
     assignment = convertResult(assignment, board)
     return assignment
 
-###Back tracking algorithm
-def check_valid(board, i, j):
-    for dir in DIRECTION:
-        x = i + dir[0]
-        y = j + dir[1]
-        if x >= 0 and x < len(board) and y >= 0 and y < len(board[0]) and board[x][y].isdigit():
-            count = 0
-            for dir2 in DIRECTION:
-                x2 = x + dir2[0]
-                y2 = y + dir2[1]
-                if x2 >= 0 and x2 < len(board) and y2 >= 0 and y2 < len(board[0]) and board[x2][y2] == 'T':
-                    count += 1
-            if count > int(board[x][y]):
-                return False
-    return True
-
-def backtrack(board, i, j):
-    if i == len(board) and j == 0:
-        return True
-    elif j == len(board[0]):
-        return backtrack(board, i + 1, 0)
-    elif i == len(board):
-        return False
-    elif board[i][j] != '_':
-        return backtrack(board, i, j + 1)
-    else:
-        for value in ['T', 'G']:
-            board[i][j] = value
-            if check_valid(board, i, j):
-                if backtrack(board, i, j + 1):
-                    return True
-            board[i][j] = '_'
-        return False
-    
-def backtracking(board):
-    if backtrack(board, 0, 0):
-        return board
-    else:
-        return None
-
 ###GET RESULT###
 def getAnswer(board, function):
-    return function([row.copy() for row in board])
+    puzzle = deepcopy(board)
+    answer = convertResult(function(puzzle), board)
+    return answer
 
 def convertResult(assignment, board):
     result = [['G' for _ in range(len(board[0]))] for _ in range(len(board))]
@@ -268,7 +267,7 @@ def convertResult(assignment, board):
             if board[i][j] != '_':
                 result[i][j] = board[i][j]
             else:
-                if assignment[i * len(board[0]) + j] == 1:
+                if assignment[i * len(board[0]) + j] > 0:
                     result[i][j] = 'T'
     return result
 
@@ -306,11 +305,13 @@ def displayResult(_map):
         clock.tick(30)          
 
 if __name__ == '__main__':
-    board = InputBoard()
+    board = InputBoard("input4x5")
   
     # print(board)
-    answer = getAnswer(board, PySat)
-    print(answer)
+    run_time = time.time()
+    answer = getAnswer(board, backtrack)
+    run_time = time.time() - run_time
+    print(run_time)
     fo = open('output.txt', 'w')
     for i in range(len(board)):
         for j in range(len(board[0]) - 1):
