@@ -1,7 +1,7 @@
 from cnf import *
 import random
 
-def walksat(board, clauses, p=0.5, max_flips=1000000):
+def walksat(board, clauses, p=0.5, max_flips=100000):
     # Initialize a random assignment
     assignment = {}
     list_num = []
@@ -29,7 +29,7 @@ def walksat(board, clauses, p=0.5, max_flips=1000000):
             var = abs(random.choice(clause)) - 1
         else:
             # Otherwise, flip var that maximizes no. of satisfied clauses
-            var = choose_var(clause, assignment)
+            var = choose_var(clause, clauses, assignment)
         
         assignment[var] = not assignment[var]
         
@@ -42,11 +42,12 @@ def satisfies(clause, assignment):
 
     return False
 
-def choose_var(clause, assignment):
+def choose_var(clause, clauses, assignment):
     # Flip var that minimizes no. of broken clauses
-    min_broken = len(clause) + 1
+    min_broken = len(clauses)
     var = None
-    
+    broken = 0
+
     for x in clause:
         if x > 0:
             tmp = assignment[:]
@@ -55,11 +56,9 @@ def choose_var(clause, assignment):
             tmp = assignment[:]
             tmp[abs(x) - 1] = True
             
-        # clause is a single literal, so broken is 0 or 1
-        if not satisfies(clause, tmp):
-            broken = 1 
-        else:
-            broken = 0
+        for c in clauses:
+            if not satisfies(c, tmp):
+                broken += 1
 
         if broken < min_broken:
             min_broken = broken
