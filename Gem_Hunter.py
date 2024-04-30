@@ -1,12 +1,11 @@
 from pysat.solvers import Glucose3
-from menu import *
-from backtrack import *
+from menu import GameMenu
 from cnf import *
-from optimal import *
-from bruteforce import *
+from optimal import optimal
+from backtrack import backtrack
+from bruteforce import bruteForce
 import time
 import pygame
-import sys
 
 method ={'Optimal': optimal, "Backtracking":backtrack, "Brute-force":bruteForce}
 
@@ -71,6 +70,8 @@ def getAnswer(board, function):
     return answer
 
 def convertResult(assignment, board):
+    if assignment is None:
+        return None
     result = [['G' for _ in range(len(board[0]))] for _ in range(len(board))]
     for i in range(len(board)):
         for j in range(len(board[0])):
@@ -106,7 +107,7 @@ def displayResult(board, is_correct = True, time = 0):
                 text_surface = font.render(letter, True, (0, 0, 0))
                 text_rect = text_surface.get_rect(center=(j * tile_size + tile_size // 2, i * tile_size + tile_size // 2))
                 win.blit(text_surface, text_rect)
-        text = f"this answer is: {is_correct}, time to solve: {time:.3f}s"
+        text = f"Alike to pysat: {is_correct}, time: {time:.3f}s"
         text_surface = font.render(text, True, (169, 205, 227))
         shadow_surface = font.render(text, True, (0, 0, 0))
         x, y = (10, row * tile_size+3)
